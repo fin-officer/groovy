@@ -44,7 +44,8 @@ COPY --from=build /build/build/libs/*.jar app.jar
 
 # Kopiowanie skryptów i plików konfiguracyjnych
 COPY scripts /app/scripts
-RUN chmod +x /app/scripts/*.sh
+# Ensure scripts have correct line endings and are executable
+RUN sed -i 's/\r$//' /app/scripts/*.sh && chmod +x /app/scripts/*.sh
 
 # Kopiowanie plików Groovy
 COPY routes /app/routes

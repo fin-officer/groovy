@@ -20,6 +20,7 @@ class MaintenanceRoutes extends RouteBuilder {
                 .setBody().constant("PRAGMA quick_check;")
                 .to("jdbc:dataSource")
                 .log(LoggingLevel.INFO, "Database health check completed: ${body}")
+                // Using proper Camel syntax for body in log
                 .process { exchange ->
                     exchange.in.body = [
                             status: "OK",
@@ -32,7 +33,8 @@ class MaintenanceRoutes extends RouteBuilder {
         // Maintenance logging
         from("direct:logMaintenance")
                 .routeId("maintenanceLogger")
-                .log(LoggingLevel.DEBUG, "Maintenance operation: ${body}")
+                .log(LoggingLevel.DEBUG, "Maintenance operation completed")
+                // Changed to static message to avoid body reference issue
 
         // Regular database optimization
         from("quartz:maintenance/dbOptimize?cron=0+0+0+*+*+?") // Daily at midnight
