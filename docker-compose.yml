@@ -6,9 +6,9 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     ports:
-      - "11434:11434"
+      - "${OLLAMA_EXTERNAL_PORT:-11435}:11434"
     volumes:
-      - ollama_models:/root/.ollama
+      - ${OLLAMA_MODELS_DIR:-./ollama_models}:/root/.ollama
     restart: unless-stopped
     networks:
       - app-network
@@ -17,17 +17,26 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 2G
 
   # Testowy serwer email (MailHog)
   mailserver:
     image: mailhog/mailhog:latest
     container_name: mailserver
     ports:
-      - "1025:1025"  # SMTP port
-      - "8025:8025"  # Web UI port
+      - "${MAILHOG_SMTP_PORT:-1026}:1025"  # SMTP port
+      - "${MAILHOG_UI_PORT:-8026}:8025"    # Web UI port
     networks:
       - app-network
     restart: unless-stopped
+    # Jeśli ustawiono dane logowania, użyj MailHog z uwierzytelnianiem
+    environment:
+      - MH_AUTH_FILE=${MAILHOG_AUTH_FILE:-}
     # Na produkcji zastąpić rzeczywistym serwerem
 
   # Aplikacja Camel z Groovy integrująca email z LLM
@@ -43,10 +52,15 @@ services:
       - mailserver
     env_file:
       - .env
+    environment:
+      - JAVA_OPTS=-Xmx${CAMEL_MAX_HEAP:-1024m} -Xms${CAMEL_MIN_HEAP:-512m}
+      - OLLAMA_HOST=${OLLAMA_HOST:-ollama}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/data/emails.db}
     volumes:
-      - ./data:/data
+      - ${DATA_DIR:-./data}:/data
       - ./camel-groovy/routes:/app/routes
-      - ./logs:/logs
+      - ${LOGS_DIR:-./logs}:/logs
     restart: unless-stopped
     networks:
       - app-network
@@ -61,17 +75,45 @@ services:
     image: adminer:latest
     container_name: adminer
     ports:
-      - "8081:8080"
+      - "${ADMINER_PORT:-8081}:8080"
     environment:
+      - ADMINER_DEFAULT_SERVER=/data/emails.db
       - ADMINER_DEFAULT_DRIVER=sqlite
+      - ADMINER_DESIGN=flat
+      - ADMINER_PLUGINS=tables-filter tinymce
+      # Uwaga: Adminer dla SQLite nie wymaga uwierzytelniania,
+      # ponieważ SQLite jest plikiem, a nie serwerem bazy danych.
+      # Poniższe zmienne są używane tylko dla informacji
+      - ADMINER_USERNAME=${ADMINER_USERNAME:-admin}
+      - ADMINER_PASSWORD=${ADMINER_PASSWORD:-email_llm_admin}
     volumes:
-      - ./data:/data:ro
+      - ${DATA_DIR:-./data}:/data:ro
     restart: unless-stopped
     networks:
       - app-network
 
+  # Opcjonalny serwer Node-RED dla wizualnego programowania przepływów (odkomentuj, aby używać)
+  # nodered:
+  #   image: nodered/node-red:latest
+  #   container_name: nodered-email-llm
+  #   ports:
+  #     - "${NODERED_PORT:-1880}:1880"
+  #   volumes:
+  #     - ./nodered_data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
+  #   environment:
+  #     - NODE_RED_ENABLE_PROJECTS=true
+  #     - NODE_RED_ENABLE_SAFE_MODE=true
+
 volumes:
   ollama_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${OLLAMA_MODELS_DIR:-./ollama_models}
 
 networks:
   app-network:
