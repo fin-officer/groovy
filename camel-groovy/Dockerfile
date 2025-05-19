@@ -1,4 +1,5 @@
-FROM openjdk:17-jdk-slim as build
+# Build stage
+FROM eclipse-temurin:17-jdk as build
 
 WORKDIR /build
 
@@ -19,7 +20,7 @@ COPY src ./src
 RUN gradle clean build -x test
 
 # Obraz docelowy
-FROM openjdk:17-jre-slim
+FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 

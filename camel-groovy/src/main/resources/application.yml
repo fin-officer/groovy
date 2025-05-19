@@ -1,0 +1,78 @@
+# Konfiguracja aplikacji
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: email-llm-integration
+  main:
+    banner-mode: off
+
+# Konfiguracja SQLite
+sqlite:
+  db:
+    path: ${SQLITE_DB_PATH:/data/emails.db}
+  journal:
+    mode: ${SQLITE_JOURNAL_MODE:WAL}
+  cache:
+    size: ${SQLITE_CACHE_SIZE:102400}
+  synchronous: ${SQLITE_SYNCHRONOUS:NORMAL}
+  connection:
+    timeout: 30
+
+# Konfiguracja email
+email:
+  host: ${EMAIL_HOST:localhost}
+  port: ${EMAIL_PORT:1025}
+  user: ${EMAIL_USER:test@example.com}
+  password: ${EMAIL_PASSWORD:password}
+  use:
+    tls: ${EMAIL_USE_TLS:false}
+  imap:
+    host: ${EMAIL_IMAP_HOST:localhost}
+    port: ${EMAIL_IMAP_PORT:1143}
+    folder: ${EMAIL_IMAP_FOLDER:INBOX}
+  polling:
+    interval: ${EMAIL_POLLING_INTERVAL:60000}
+
+# Konfiguracja Ollama
+ollama:
+  host: ${OLLAMA_HOST:ollama:11434}
+  model: ${OLLAMA_MODEL:mistral}
+  api:
+    key: ${OLLAMA_API_KEY:}
+  timeout: ${OLLAMA_TIMEOUT:60}
+
+# Konfiguracja konserwacji
+maintenance:
+  cleanup:
+    interval: ${MAINTENANCE_CLEANUP_INTERVAL:86400000}  # 24h w milisekundach
+  email:
+    retention:
+      days: ${MAINTENANCE_EMAIL_RETENTION_DAYS:30}
+
+# Konfiguracja Camel
+camel:
+  springboot:
+    name: EmailLLMIntegration
+  component:
+    servlet:
+      mapping:
+        context-path: /api/*
+  dataformat:
+    jackson:
+      auto-discover-object-mapper: true
+  rest:
+    api-context-path: /api-doc
+    api-host: localhost:${server.port}
+    component: servlet
+    binding-mode: json
+  main:
+    stream-caching: true
+
+# Logging
+logging:
+  level:
+    root: INFO
+    org.apache.camel: INFO
+    com.example.emailllm: DEBUG
