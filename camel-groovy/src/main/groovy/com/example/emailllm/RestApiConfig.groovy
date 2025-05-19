@@ -18,29 +18,15 @@ class RestApiConfig extends RouteBuilder {
     void configure() throws Exception {
         // Configure REST DSL
         restConfiguration()
-                .contextPath("/api")
+                .component("servlet")
+                .bindingMode(RestBindingMode.json)
+                .dataFormatProperty("prettyPrint", "true")
                 .apiContextPath("/api-docs")
                 .apiProperty("api.title", "Email-LLM Integration API")
                 .apiProperty("api.version", "0.1.0")
                 .apiProperty("cors", "true")
-                .bindingMode(RestBindingMode.json)
-                .dataFormatProperty("prettyPrint", "true")
+                .host("localhost:" + serverPort)
+                .contextPath("/")
                 .enableCORS(true)
-        // Dodanie szczegółów autentykacji dla Swagger UI (opcjonalnie)
-                .apiProperty("api.description",
-                        "API for Email-LLM Integration: Automated email processing with LLM analysis")
-                .apiProperty("host", "localhost:" + serverPort)
-                .apiProperty("schemes", "http")
-        // Dodajemy logowanie błędów
-                .onException(Exception.class)
-                .handled(true)
-                .logStackTrace(true)
-                .logExhaustedMessageHistory(true)
-                .logExhausted(true)
-                .logHandled(true)
-                .end()
-
-        // Logowanie konfiguracji REST
-        log.info("REST API configured on port: " + serverPort)
     }
 }

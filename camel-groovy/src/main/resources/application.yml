@@ -17,18 +17,32 @@ spring:
             enable: ${EMAIL_USE_TLS:true}
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8080
   servlet:
     context-path: /
+  tomcat:
+    connection-timeout: 20000
+    max-threads: 100
+    min-spare-threads: 10
+    accesslog:
+      enabled: true
+      directory: /logs
+      pattern: '%t %a "%r" %s %b %D ms'
 
 # Camel configuration
 camel:
   springboot:
+    name: Email-LLM-Integration
     main-run-controller: true
+    jmx-enabled: false
   component:
     servlet:
       mapping:
         context-path: /api/*
+    http:
+      connection-request-timeout: 30000
+      connection-timeout: 30000
+      socket-timeout: 60000
   dataformat:
     json:
       library: jackson
@@ -44,14 +58,29 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,camelroutes,metrics
   endpoint:
     health:
       show-details: always
+    camelroutes:
+      enabled: true
+      read-only: false
 
 # Logging configuration
 logging:
   level:
-    root: INFO
-    com.example.emailllm: DEBUG
+    root: ${LOG_LEVEL:INFO}
+    com.example.emailllm: ${LOG_LEVEL:DEBUG}
     org.apache.camel: ${CAMEL_DEBUG:INFO}
+  file:
+    name: /logs/application.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Ollama LLM configuration
+ollama:
+  host: ${OLLAMA_HOST:ollama}
+  port: ${OLLAMA_PORT:11434}
+  model: ${OLLAMA_MODEL:mistral}
+  timeout: 60000

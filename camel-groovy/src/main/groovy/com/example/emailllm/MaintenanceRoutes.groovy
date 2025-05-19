@@ -15,68 +15,68 @@ class MaintenanceRoutes extends RouteBuilder {
     void configure() throws Exception {
         // Scheduled health check
         from("quartz:maintenance/healthCheck?cron=0+0/30+*+*+*+?")
-            .routeId("scheduledHealthCheck")
-            .log(LoggingLevel.INFO, "Running scheduled health check")
-            .setBody(constant("PRAGMA quick_check;"))
-            .to("jdbc:dataSource")
-            .log(LoggingLevel.INFO, "Database health check completed: ${body}")
-            .process { exchange ->
-                exchange.in.body = [
-                    status: "OK",
-                    timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
-                ]
-            }
-            .marshal().json()
-            .to("direct:logMaintenance")
+                .routeId("scheduledHealthCheck")
+                .log(LoggingLevel.INFO, "Running scheduled health check")
+                .setBody().constant("PRAGMA quick_check;")
+                .to("jdbc:dataSource")
+                .log(LoggingLevel.INFO, "Database health check completed: ${body}")
+                .process { exchange ->
+                    exchange.in.body = [
+                            status: "OK",
+                            timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                    ]
+                }
+                .marshal().json()
+                .to("direct:logMaintenance")
 
         // Maintenance logging
         from("direct:logMaintenance")
-            .routeId("maintenanceLogger")
-            .log(LoggingLevel.DEBUG, "Maintenance operation: ${body}")
+                .routeId("maintenanceLogger")
+                .log(LoggingLevel.DEBUG, "Maintenance operation: ${body}")
 
         // Regular database optimization
         from("quartz:maintenance/dbOptimize?cron=0+0+0+*+*+?") // Daily at midnight
-            .routeId("dbOptimizer")
-            .log(LoggingLevel.INFO, "Running database optimization")
-            .process { exchange ->
-                def queries = [
-                    "PRAGMA analyze;",
-                    "PRAGMA optimize;",
-                    "VACUUM;"
-                ]
-                exchange.in.body = queries
-            }
-            .split(body())
-            .to("jdbc:dataSource")
-            .end()
-            .process { exchange ->
-                exchange.in.body = [
-                    status: "Database optimized",
-                    timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
-                ]
-            }
-            .marshal().json()
-            .to("direct:logMaintenance")
+                .routeId("dbOptimizer")
+                .log(LoggingLevel.INFO, "Running database optimization")
+                .process { exchange ->
+                    def queries = [
+                            "PRAGMA analyze;",
+                            "PRAGMA optimize;",
+                            "VACUUM;"
+                    ]
+                    exchange.in.body = queries
+                }
+                .split().body()
+                .to("jdbc:dataSource")
+                .end()
+                .process { exchange ->
+                    exchange.in.body = [
+                            status: "Database optimized",
+                            timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                    ]
+                }
+                .marshal().json()
+                .to("direct:logMaintenance")
 
         // API documentation endpoint
-        rest("/api")
-            .get("/api-doc")
-            .produces("application/json")
-            .route()
-            .process { exchange ->
-                exchange.in.body = [
-                    name: "Email-LLM Integration API",
-                    version: "0.1.0",
-                    description: "API for Email-LLM Integration with Apache Camel and Groovy",
-                    endpoints: [
-                        [path: "/api/health", method: "GET", description: "Health check endpoint"],
-                        [path: "/api/emails", method: "GET", description: "Get processed emails"],
-                        [path: "/api/llm/direct-analyze", method: "POST", description: "Direct LLM analysis"]
-                    ],
-                    timestamp: LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                ]
-            }
-            .marshal().json()
-            .endRest()
+        rest().get("/api/api-doc")
+                .produces("application/json")
+                .to("direct:apiDoc")
+
+        from("direct:apiDoc")
+                .process { exchange ->
+                    exchange.in.body = [
+                            name: "Email-LLM Integration API",
+                            version: "0.1.0",
+                            description: "API for Email-LLM Integration with Apache Camel and Groovy",
+                            endpoints: [
+                                    [path: "/api/health", method: "GET", description: "Health check endpoint"],
+                                    [path: "/api/emails", method: "GET", description: "Get processed emails"],
+                                    [path: "/api/llm/direct-analyze", method: "POST", description: "Direct LLM analysis"]
+                            ],
+                            timestamp: LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    ]
+                }
+                .marshal().json()
     }
 }

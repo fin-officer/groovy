@@ -17,6 +17,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -49,17 +50,19 @@ services:
         DEPS_CHECKSUM: "${DEPS_CHECKSUM:-0}"  # Zmień tylko gdy zmienisz zależności
     container_name: camel-groovy-email-llm
     ports:
-      - "${SERVER_PORT:-8083}:8080" # Zmiana domyślnego portu na 8083
+      - "${SERVER_PORT:-8083}:8080"
     depends_on:
       - ollama
       - mailserver
     env_file:
       - .env
     environment:
-      - JAVA_OPTS=-Xmx${CAMEL_MAX_HEAP:-1024m} -Xms${CAMEL_MIN_HEAP:-512m}
+      - JAVA_OPTS=-Xmx${CAMEL_MAX_HEAP:-1024m} -Xms${CAMEL_MIN_HEAP:-512m} -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-dev}
       - OLLAMA_HOST=${OLLAMA_HOST:-ollama}
       - OLLAMA_PORT=${OLLAMA_PORT:-11434}
       - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/data/emails.db}
+      - SERVER_PORT=8080  # Wewnętrzny port w kontenerze zawsze 8080
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ${DATA_DIR:-./data}:/data
       - ./camel-groovy/routes:/app/routes
@@ -72,6 +75,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Narzędzie administracyjne dla bazy SQLite
   adminer:
@@ -84,6 +93,9 @@ services:
       - ADMINER_DEFAULT_DRIVER=sqlite
       - ADMINER_DESIGN=flat
       - ADMINER_PLUGINS=tables-filter tinymce
+      # Uwaga: Adminer dla SQLite nie wymaga uwierzytelniania,
+      # ponieważ SQLite jest plikiem, a nie serwerem bazy danych.
+      # Poniższe zmienne są używane tylko dla informacji
       - ADMINER_USERNAME=${ADMINER_USERNAME:-admin}
       - ADMINER_PASSWORD=${ADMINER_PASSWORD:-email_llm_admin}
     volumes:

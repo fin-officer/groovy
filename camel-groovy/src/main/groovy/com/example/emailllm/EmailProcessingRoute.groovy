@@ -25,43 +25,40 @@ class EmailProcessingRoute extends RouteBuilder {
                 .logStackTrace(true))
 
         // Health check endpoint
-        rest("/api")
-                .get("/health")
+        rest().get("/api/health")
                 .produces("application/json")
-                .route()
-                .setBody(constant([
-                        status: "UP",
-                        timestamp: LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        version: "0.1.0"
-                ]))
-                .endRest()
+                .to("direct:healthCheck")
+
+        from("direct:healthCheck")
+                .setBody().constant([
+                status: "UP",
+                timestamp: LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                version: "0.1.0"
+        ])
 
         // Endpoint for direct LLM analysis
-        rest("/api/llm")
-                .post("/direct-analyze")
+        rest().post("/api/llm/direct-analyze")
                 .consumes("application/json")
                 .produces("application/json")
-                .route()
                 .to("direct:analyzeLLM")
-                .endRest()
 
         // Endpoint to fetch emails
-        rest("/api/emails")
-                .get()
+        rest().get("/api/emails")
                 .produces("application/json")
-                .route()
                 .to("direct:getEmails")
-                .endRest()
 
-        // Error handler route
+        // Error handler route - simplified to avoid variable access issues
         from("direct:errorHandler")
-                .log(LoggingLevel.ERROR, "Error occurred: ${exception.message}")
+                .log(LoggingLevel.ERROR, "Error occurred in processing")
                 .process { exchange ->
-                    def errorMessage = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class).message
-                    exchange.in.body = [
+                    // Access the exception through the exchange property
+                    def exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)
+                    def errorMessage = exception ? exception.getMessage() : "Unknown error"
+
+                    exchange.getMessage().setBody([
                             error: errorMessage,
                             timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
-                    ]
+                    ])
                 }
                 .marshal().json()
                 .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
@@ -70,7 +67,7 @@ class EmailProcessingRoute extends RouteBuilder {
         // Get emails route
         from("direct:getEmails")
                 .log("Fetching emails from database")
-                .setBody(constant("SELECT id, message_id, subject, sender, recipients, received_date, processed_date, status, llm_analysis FROM processed_emails ORDER BY received_date DESC LIMIT 50"))
+                .setBody().constant("SELECT id, message_id, subject, sender, recipients, received_date, processed_date, status, llm_analysis FROM processed_emails ORDER BY received_date DESC LIMIT 50")
                 .to("jdbc:dataSource")
                 .process { exchange ->
                     def emails = exchange.in.body.collect { row ->
@@ -129,7 +126,7 @@ class EmailProcessingRoute extends RouteBuilder {
                 .marshal().json()
                 .removeHeaders("CamelHttp*")
                 .setHeader("Content-Type", constant("application/json"))
-        // Call Ollama API - Fixed URL configuration
+        // Call Ollama API
                 .toD("http://${System.getenv('OLLAMA_HOST') ?: 'ollama'}:${System.getenv('OLLAMA_PORT') ?: '11434'}/api/generate")
                 .unmarshal().json()
         // Extract response
@@ -141,33 +138,15 @@ class EmailProcessingRoute extends RouteBuilder {
                     def jsonStart = responseText.indexOf('{')
                     def jsonEnd = responseText.lastIndexOf('}')
 
-                    def outputData = [:]
-
                     if (jsonStart >= 0 && jsonEnd >= 0) {
                         responseText = responseText.substring(jsonStart, jsonEnd + 1)
-
-                        try {
-                            // Try to validate JSON
-                            new groovy.json.JsonSlurper().parseText(responseText)
-                            outputData.status = "success"
-                        } catch (Exception e) {
-                            // If JSON is invalid
-                            outputData.status = "error"
-                            outputData.error = "Invalid JSON response: ${e.message}"
-                        }
-                    } else {
-                        outputData.status = "error"
-                        outputData.error = "No JSON found in response"
                     }
 
-                    // Set the output
-                    outputData.analysis = responseText
-                    outputData.model = response.model ?: model
-                    outputData.timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-
-                    exchange.in.body = outputData
+                    exchange.in.body = [
+                            analysis: responseText,
+                            model: response.model ?: System.getenv("OLLAMA_MODEL") ?: "mistral",
+                            timestamp: LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    ]
                 }
-                .marshal().json()
-                .log("Analysis completed with model: ${body.model}")
     }
 }
