@@ -25,8 +25,24 @@ fi
 
 # Create necessary directories with proper permissions
 echo -e "${BLUE}[INFO]${NC} Creating necessary directories..."
-mkdir -p ./data ./logs ./ollama_models ./gradle-cache
-chmod -R 777 ./data ./logs ./ollama_models ./gradle-cache
+mkdir -p ./data ./logs ./gradle-cache
+
+# Create ollama_models directory only if it doesn't exist
+if [ ! -d "./ollama_models" ]; then
+    mkdir -p ./ollama_models
+fi
+
+# Don't try to change permissions on ollama_models if they already exist
+# This avoids Permission denied errors
+if [ -w "./data" ]; then
+    chmod -R 777 ./data
+fi
+if [ -w "./logs" ]; then
+    chmod -R 777 ./logs
+fi
+if [ -w "./gradle-cache" ]; then
+    chmod -R 777 ./gradle-cache
+fi
 
 # Check for existing containers and handle conflicts
 echo -e "${BLUE}[INFO]${NC} Checking for existing containers..."
@@ -46,9 +62,11 @@ docker-compose down --remove-orphans > /dev/null 2>&1
 echo -e "${BLUE}[INFO]${NC} Building images with cache optimization..."
 docker-compose build --build-arg GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.caching=true" --pull
 
-# Clear any running containers using the same ports
-SERVER_PORT=$(grep "SERVER_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8083")
+# Get server port from .env without comments
+SERVER_PORT=$(grep "SERVER_PORT=" .env 2>/dev/null | cut -d '=' -f2 | sed 's/#.*$//' | xargs || echo "8083")
 echo -e "${BLUE}[INFO]${NC} Checking if port $SERVER_PORT is in use by Docker containers..."
+
+# Find and stop containers using the API port
 CONTAINERS_USING_PORT=$(docker ps --format "{{.ID}}" -f "publish=$SERVER_PORT")
 if [ ! -z "$CONTAINERS_USING_PORT" ]; then
     echo -e "${YELLOW}[WARNING]${NC} Found containers using port $SERVER_PORT. Stopping them..."
@@ -97,8 +115,8 @@ echo -e "${BLUE}[INFO]${NC} Waiting for application to start..."
 MAX_APP_RETRIES=45
 APP_RETRY_COUNT=0
 
-# Get actual server port from .env file
-SERVER_PORT=$(grep "SERVER_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8083")
+# Get actual server port from .env file, clean it from comments
+SERVER_PORT=$(grep "SERVER_PORT=" .env 2>/dev/null | cut -d '=' -f2 | sed 's/#.*$//' | xargs || echo "8083")
 echo -e "${BLUE}[INFO]${NC} Using API port: $SERVER_PORT"
 
 while ! curl -s http://localhost:$SERVER_PORT/api/health &> /dev/null; do
@@ -119,9 +137,9 @@ echo ""
 echo -e "${BLUE}[INFO]${NC} Checking container status..."
 docker ps | grep -E 'ollama|camel-groovy|mailserver|adminer'
 
-# Read port values from .env for display
-MAILHOG_UI_PORT=$(grep "MAILHOG_UI_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8026")
-ADMINER_PORT=$(grep "ADMINER_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8081")
+# Read port values from .env for display, clean from comments
+MAILHOG_UI_PORT=$(grep "MAILHOG_UI_PORT=" .env 2>/dev/null | cut -d '=' -f2 | sed 's/#.*$//' | xargs || echo "8026")
+ADMINER_PORT=$(grep "ADMINER_PORT=" .env 2>/dev/null | cut -d '=' -f2 | sed 's/#.*$//' | xargs || echo "8081")
 
 echo -e "${GREEN}[SUCCESS]${NC} System started successfully!"
 echo ""

@@ -1,6 +1,7 @@
 .idea
 models
 ollama_models
+data
 .config.nodes.json
 .config.runtime.json
 .config.runtime.json.backup
