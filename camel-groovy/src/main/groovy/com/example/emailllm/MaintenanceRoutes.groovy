@@ -19,8 +19,8 @@ class MaintenanceRoutes extends RouteBuilder {
                 .log(LoggingLevel.INFO, "Running scheduled health check")
                 .setBody().constant("PRAGMA quick_check;")
                 .to("jdbc:dataSource")
-                .log(LoggingLevel.INFO, "Database health check completed: ${body}")
-                // Using proper Camel syntax for body in log
+                .log(LoggingLevel.INFO, "Database health check completed")
+                // Fixed to remove body reference in string interpolation
                 .process { exchange ->
                     exchange.in.body = [
                             status: "OK",
