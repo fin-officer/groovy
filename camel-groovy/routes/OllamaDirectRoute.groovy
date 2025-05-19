@@ -20,15 +20,15 @@ class OllamaDirectRoute extends RouteBuilder {
                 def requestBody = exchange.in.body
                 def text = requestBody.text ?: ""
                 def context = requestBody.context ?: ""
-                
+
                 // Prepare prompt for the LLM
                 def prompt = """
                 Analyze the following message and provide insights:
-                
+
                 MESSAGE: "${text}"
-                
+
                 CONTEXT: "${context}"
-                
+
                 Provide analysis in JSON format with the following structure:
                 {
                   "intent": "",       // The primary intent of the message
@@ -38,7 +38,7 @@ class OllamaDirectRoute extends RouteBuilder {
                   "suggestedResponse": ""  // Brief suggested response
                 }
                 """
-                
+
                 exchange.in.body = [
                     model: System.getenv("OLLAMA_MODEL") ?: "mistral",
                     prompt: prompt
@@ -54,15 +54,15 @@ class OllamaDirectRoute extends RouteBuilder {
             .process { exchange ->
                 def response = exchange.in.body
                 def responseText = response.response ?: ""
-                
+
                 // Try to extract JSON from response
                 def jsonStart = responseText.indexOf('{')
                 def jsonEnd = responseText.lastIndexOf('}')
-                
+
                 if (jsonStart >= 0 && jsonEnd >= 0) {
                     responseText = responseText.substring(jsonStart, jsonEnd + 1)
                 }
-                
+
                 exchange.in.body = [
                     analysis: responseText,
                     model: System.getenv("OLLAMA_MODEL") ?: "mistral",

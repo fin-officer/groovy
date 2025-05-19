@@ -1,3 +1,20 @@
+#!/bin/bash
+# Quick fix script for EmailProcessingRoute.groovy
+
+# Colors for output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}[INFO]${NC} Fixing the simple expression issue in EmailProcessingRoute.groovy..."
+
+# Create directory structure if it doesn't exist
+mkdir -p camel-groovy/src/main/groovy/com/example/emailllm
+
+# Create a new fixed version of EmailProcessingRoute.groovy
+cat > camel-groovy/src/main/groovy/com/example/emailllm/EmailProcessingRoute.groovy << 'EOL'
 package com.example.emailllm
 
 import org.apache.camel.builder.RouteBuilder
@@ -152,3 +169,101 @@ class EmailProcessingRoute extends RouteBuilder {
             }
     }
 }
+EOL
+
+echo -e "${GREEN}[SUCCESS]${NC} Fixed EmailProcessingRoute.groovy"
+
+# Also fix MaintenanceRoutes.groovy to be safe
+cat > camel-groovy/src/main/groovy/com/example/emailllm/MaintenanceRoutes.groovy << 'EOL'
+package com.example.emailllm
+
+import org.apache.camel.builder.RouteBuilder
+import org.apache.camel.LoggingLevel
+import org.springframework.stereotype.Component
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+/**
+ * Maintenance routes for scheduled jobs and system maintenance tasks
+ */
+@Component
+class MaintenanceRoutes extends RouteBuilder {
+    @Override
+    void configure() throws Exception {
+        // Scheduled health check
+        from("quartz:maintenance/healthCheck?cron=0+0/30+*+*+*+?")
+            .routeId("scheduledHealthCheck")
+            .log(LoggingLevel.INFO, "Running scheduled health check")
+            .setBody(constant("PRAGMA quick_check;"))
+            .to("jdbc:dataSource")
+            .log(LoggingLevel.INFO, "Database health check completed: ${body}")
+            .process { exchange ->
+                exchange.in.body = [
+                    status: "OK",
+                    timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                ]
+            }
+            .marshal().json()
+            .to("direct:logMaintenance")
+
+        // Maintenance logging
+        from("direct:logMaintenance")
+            .routeId("maintenanceLogger")
+            .log(LoggingLevel.DEBUG, "Maintenance operation: ${body}")
+
+        // Regular database optimization
+        from("quartz:maintenance/dbOptimize?cron=0+0+0+*+*+?") // Daily at midnight
+            .routeId("dbOptimizer")
+            .log(LoggingLevel.INFO, "Running database optimization")
+            .process { exchange ->
+                def queries = [
+                    "PRAGMA analyze;",
+                    "PRAGMA optimize;",
+                    "VACUUM;"
+                ]
+                exchange.in.body = queries
+            }
+            .split(body())
+            .to("jdbc:dataSource")
+            .end()
+            .process { exchange ->
+                exchange.in.body = [
+                    status: "Database optimized",
+                    timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                ]
+            }
+            .marshal().json()
+            .to("direct:logMaintenance")
+
+        // API documentation endpoint
+        rest("/api")
+            .get("/api-doc")
+            .produces("application/json")
+            .route()
+            .process { exchange ->
+                exchange.in.body = [
+                    name: "Email-LLM Integration API",
+                    version: "0.1.0",
+                    description: "API for Email-LLM Integration with Apache Camel and Groovy",
+                    endpoints: [
+                        [path: "/api/health", method: "GET", description: "Health check endpoint"],
+                        [path: "/api/emails", method: "GET", description: "Get processed emails"],
+                        [path: "/api/llm/direct-analyze", method: "POST", description: "Direct LLM analysis"]
+                    ],
+                    timestamp: LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                ]
+            }
+            .marshal().json()
+            .endRest()
+    }
+}
+EOL
+
+echo -e "${GREEN}[SUCCESS]${NC} Fixed MaintenanceRoutes.groovy"
+
+# Show instructions
+echo -e "${YELLOW}[NEXT STEPS]${NC} Try rebuilding and running the project:"
+echo -e "${BLUE}./start.sh${NC}"
+
+# Make the script executable
+chmod +x "$0"

@@ -16,13 +16,23 @@ ext {
     camelVersion = '4.1.0'
 }
 
+configurations.all {
+    resolutionStrategy {
+        // Force all Groovy modules to use Apache Groovy 4.0.15 version
+        force 'org.apache.groovy:groovy:4.0.15'
+        force 'org.apache.groovy:groovy-json:4.0.15'
+        force 'org.apache.groovy:groovy-xml:4.0.15'
+    }
+}
+
 dependencies {
     // Spring Boot
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 
-    // Groovy
-    implementation 'org.codehaus.groovy:groovy-all:3.0.19'
+    // Groovy - use Apache Groovy 4.x instead of Codehaus Groovy 3.x
+    implementation 'org.apache.groovy:groovy-all:4.0.15'
 
     // Apache Camel
     implementation "org.apache.camel.springboot:camel-spring-boot-starter:${camelVersion}"
@@ -38,6 +48,9 @@ dependencies {
     implementation "org.apache.camel.springboot:camel-rest-starter:${camelVersion}"
     implementation "org.apache.camel.springboot:camel-servlet-starter:${camelVersion}"
     implementation "org.apache.camel.springboot:camel-quartz-starter:${camelVersion}"
+
+    // Jakarta Mail API (for Jakarta EE 9+)
+    implementation 'com.sun.mail:jakarta.mail:2.0.1'
 
     // SQLite
     implementation 'org.xerial:sqlite-jdbc:3.43.0.0'
