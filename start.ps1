@@ -9,14 +9,9 @@ $NC = "`e[0m" # No Color
 
 Write-Host "${BLUE}[INFO]${NC} Starting Email-LLM Integration system..."
 
-# Check if Docker is running
-try {
-    docker info 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Docker command failed" }
-} catch {
-    Write-Host "${RED}[ERROR]${NC} Docker is not running. Please start Docker and try again."
-    exit 1
-}
+# Proceed directly to docker-compose commands
+Write-Host "${GREEN}[INFO]${NC} Proceeding with docker-compose..."
+
 
 # Check port availability
 if (Test-Path "./check-ports.ps1") {
@@ -51,7 +46,7 @@ Write-Host "${BLUE}[INFO]${NC} Checking for existing containers..."
 $existingContainers = docker ps -a | Select-String -Pattern "mailserver|ollama|camel-groovy|adminer" | ForEach-Object { $_.Matches.Value }
 if ($existingContainers) {
     Write-Host "${YELLOW}[WARNING]${NC} Found existing containers that may conflict."
-    Write-Host "${BLUE}[INFO]${NC} Stopping existing containers..."
+    Write-Host "${RED}[INFO]${NC} Stopping existing containers..."
     foreach ($container in $existingContainers) {
         docker stop $container
         docker rm $container
@@ -60,7 +55,7 @@ if ($existingContainers) {
 
 # Start containers
 Write-Host "${BLUE}[INFO]${NC} Starting containers..."
-docker-compose up -d
+docker compose up -d
 
 # Get port values from .env with defaults
 $mailhogPort = "8026"
