@@ -11,7 +11,8 @@ Write-Host "${BLUE}[INFO]${NC} Starting Email-LLM Integration system..."
 
 # Check if Docker is running
 try {
-    docker info -ErrorAction Stop
+    docker info 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Docker command failed" }
 } catch {
     Write-Host "${RED}[ERROR]${NC} Docker is not running. Please start Docker and try again."
     exit 1
@@ -61,13 +62,24 @@ if ($existingContainers) {
 Write-Host "${BLUE}[INFO]${NC} Starting containers..."
 docker-compose up -d
 
-# Get port values from .env
-$envContent = Get-Content -Path ".env" -ErrorAction SilentlyContinue
-$mailhogPort = ($envContent -match "MAILHOG_UI_PORT=" -replace "#.*$" -replace "MAILHOG_UI_PORT=", "" -replace "^\s+", "").Trim()
-$adminerPort = ($envContent -match "ADMINER_PORT=" -replace "#.*$" -replace "ADMINER_PORT=", "" -replace "^\s+", "").Trim()
+# Get port values from .env with defaults
+$mailhogPort = "8026"
+$adminerPort = "8081"
 
-if (-not $mailhogPort) { $mailhogPort = "8026" }
-if (-not $adminerPort) { $adminerPort = "8081" }
+# Try to read ports from .env file if it exists
+if (Test-Path ".env") {
+    $envContent = Get-Content -Path ".env" -Raw
+    
+    # Extract MAILHOG_UI_PORT if it exists
+    if ($envContent -match "MAILHOG_UI_PORT\s*=\s*([0-9]+)") {
+        $mailhogPort = $matches[1]
+    }
+    
+    # Extract ADMINER_PORT if it exists
+    if ($envContent -match "ADMINER_PORT\s*=\s*([0-9]+)") {
+        $adminerPort = $matches[1]
+    }
+}
 
 Write-Host "${GREEN}[SUCCESS]${NC} System started successfully!"
 Write-Host "${BLUE}[INFO]${NC} Services are available at:"
