@@ -15,6 +15,19 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
+# Sprawdź dostępność portów
+if [ -f "./check-ports.sh" ]; then
+    echo -e "${BLUE}[INFO]${NC} Checking port availability..."
+    bash ./check-ports.sh
+else
+    echo -e "${YELLOW}[WARNING]${NC} Port checker script not found. Skipping port check."
+fi
+
+# Create necessary directories with proper permissions
+echo -e "${BLUE}[INFO]${NC} Creating necessary directories..."
+mkdir -p ./data ./logs ./ollama_models ./gradle-cache
+chmod -R 777 ./data ./logs ./ollama_models ./gradle-cache
+
 # Check for existing containers and handle conflicts
 echo -e "${BLUE}[INFO]${NC} Checking for existing containers..."
 EXISTING_CONTAINERS=$(docker ps -a | grep -E 'mailserver|ollama|camel-groovy|adminer' | awk '{print $1}')
@@ -29,9 +42,18 @@ fi
 echo -e "${BLUE}[INFO]${NC} Ensuring all project containers are stopped..."
 docker-compose down --remove-orphans > /dev/null 2>&1
 
-# Build images
-echo -e "${BLUE}[INFO]${NC} Building images..."
-docker-compose build
+# Build images with build cache
+echo -e "${BLUE}[INFO]${NC} Building images with cache optimization..."
+docker-compose build --build-arg GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.caching=true" --pull
+
+# Clear any running containers using the same ports
+SERVER_PORT=$(grep "SERVER_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8083")
+echo -e "${BLUE}[INFO]${NC} Checking if port $SERVER_PORT is in use by Docker containers..."
+CONTAINERS_USING_PORT=$(docker ps --format "{{.ID}}" -f "publish=$SERVER_PORT")
+if [ ! -z "$CONTAINERS_USING_PORT" ]; then
+    echo -e "${YELLOW}[WARNING]${NC} Found containers using port $SERVER_PORT. Stopping them..."
+    docker stop $CONTAINERS_USING_PORT
+fi
 
 # Start containers
 echo -e "${BLUE}[INFO]${NC} Starting containers..."
@@ -74,7 +96,12 @@ fi
 echo -e "${BLUE}[INFO]${NC} Waiting for application to start..."
 MAX_APP_RETRIES=45
 APP_RETRY_COUNT=0
-while ! curl -s http://localhost:8080/api/health &> /dev/null; do
+
+# Get actual server port from .env file
+SERVER_PORT=$(grep "SERVER_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8083")
+echo -e "${BLUE}[INFO]${NC} Using API port: $SERVER_PORT"
+
+while ! curl -s http://localhost:$SERVER_PORT/api/health &> /dev/null; do
     echo -n "."
     sleep 2
     APP_RETRY_COUNT=$((APP_RETRY_COUNT+1))
@@ -92,13 +119,17 @@ echo ""
 echo -e "${BLUE}[INFO]${NC} Checking container status..."
 docker ps | grep -E 'ollama|camel-groovy|mailserver|adminer'
 
+# Read port values from .env for display
+MAILHOG_UI_PORT=$(grep "MAILHOG_UI_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8026")
+ADMINER_PORT=$(grep "ADMINER_PORT=" .env 2>/dev/null | cut -d '=' -f2 || echo "8081")
+
 echo -e "${GREEN}[SUCCESS]${NC} System started successfully!"
 echo ""
 echo "Available services:"
-echo -e "${BLUE}* API:${NC} http://localhost:8080/api"
-echo -e "${BLUE}* API Documentation:${NC} http://localhost:8080/api/api-doc"
-echo -e "${BLUE}* Test Email Panel:${NC} http://localhost:${MAILHOG_UI_PORT:-8025}"
-echo -e "${BLUE}* SQLite Admin Panel:${NC} http://localhost:${ADMINER_PORT:-8081}"
+echo -e "${BLUE}* API:${NC} http://localhost:$SERVER_PORT/api"
+echo -e "${BLUE}* API Documentation:${NC} http://localhost:$SERVER_PORT/api/api-doc"
+echo -e "${BLUE}* Test Email Panel:${NC} http://localhost:$MAILHOG_UI_PORT"
+echo -e "${BLUE}* SQLite Admin Panel:${NC} http://localhost:$ADMINER_PORT"
 echo ""
 echo -e "${YELLOW}To check application logs:${NC} docker logs -f camel-groovy-email-llm"
 echo -e "${YELLOW}To check Ollama logs:${NC} docker logs -f ollama"

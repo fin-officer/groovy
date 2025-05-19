@@ -1,4 +1,6 @@
 .idea
+models
+ollama_models
 .config.nodes.json
 .config.runtime.json
 .config.runtime.json.backup

@@ -37,16 +37,19 @@ services:
     # Jeśli ustawiono dane logowania, użyj MailHog z uwierzytelnianiem
     environment:
       - MH_AUTH_FILE=${MAILHOG_AUTH_FILE:-}
-    # Na produkcji zastąpić rzeczywistym serwerem
 
   # Aplikacja Camel z Groovy integrująca email z LLM
   camel-groovy:
     build:
       context: ./camel-groovy
       dockerfile: Dockerfile
+      args:
+        # Dodanie argumentów do cache
+        GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.caching=true"
+        DEPS_CHECKSUM: "${DEPS_CHECKSUM:-0}"  # Zmień tylko gdy zmienisz zależności
     container_name: camel-groovy-email-llm
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "${SERVER_PORT:-8083}:8080" # Zmiana domyślnego portu na 8083
     depends_on:
       - ollama
       - mailserver
@@ -81,9 +84,6 @@ services:
       - ADMINER_DEFAULT_DRIVER=sqlite
       - ADMINER_DESIGN=flat
       - ADMINER_PLUGINS=tables-filter tinymce
-      # Uwaga: Adminer dla SQLite nie wymaga uwierzytelniania,
-      # ponieważ SQLite jest plikiem, a nie serwerem bazy danych.
-      # Poniższe zmienne są używane tylko dla informacji
       - ADMINER_USERNAME=${ADMINER_USERNAME:-admin}
       - ADMINER_PASSWORD=${ADMINER_PASSWORD:-email_llm_admin}
     volumes:
@@ -91,21 +91,6 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-
-  # Opcjonalny serwer Node-RED dla wizualnego programowania przepływów (odkomentuj, aby używać)
-  # nodered:
-  #   image: nodered/node-red:latest
-  #   container_name: nodered-email-llm
-  #   ports:
-  #     - "${NODERED_PORT:-1880}:1880"
-  #   volumes:
-  #     - ./nodered_data:/data
-  #   restart: unless-stopped
-  #   networks:
-  #     - app-network
-  #   environment:
-  #     - NODE_RED_ENABLE_PROJECTS=true
-  #     - NODE_RED_ENABLE_SAFE_MODE=true
 
 volumes:
   ollama_models:
